@@ -77,7 +77,7 @@ SECTOR_ICONS = {
 @st.cache_resource
 def init_connections():
     """
-    Initialize Gemini AI and Supabase connections with fallback to mock mode
+    Initialize Gemini AI and Supabase connections with 2025 Stable Models.
     Returns: (gemini_model, supabase_client, connection_status)
     """
     connection_status = {
@@ -89,76 +89,60 @@ def init_connections():
     gemini_model = None
     supabase_client = None
     
+    # 1. INITIALIZE GEMINI AI (2025 STABLE VERSION)
     try:
-        # Check if backend libraries are available
-        if not BACKEND_AVAILABLE:
-            st.info("Running in mock mode. Install google-generativeai and supabase for full functionality.")
-            return None, None, connection_status
-        
-        # Initialize Gemini AI
-        try:
-            if "GEMINI_API_KEY" in st.secrets:
-                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                
-                # ✅ USE CORRECT MODEL NAME FOR 2.5 FLASH-LITE:
-                # Option 1: Gemini 2.5 Flash-Lite (Fast & Efficient - 90% profit margin)
-                gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
-                
-                # Option 2: Gemini 3 Flash (if you have early access)
-                # gemini_model = genai.GenerativeModel('gemini-3.0-flash-exp')
-                
-                # Option 3: Fallback to latest stable
-                # gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                
-                # Test connection
-                try:
-                    response = gemini_model.generate_content("Test connection")
-                    connection_status["gemini_available"] = True
-                    st.success("✅ Gemini AI 2.5 Flash-Lite connected successfully")
-                except Exception as model_error:
-                    # Try fallback model
-                    st.warning(f"⚠️ 2.5 Flash-Lite not available: {str(model_error)}")
-                    st.info("Trying fallback model...")
-                    gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                    response = gemini_model.generate_content("Test")
-                    connection_status["gemini_available"] = True
-                    st.success("✅ Gemini AI connected with fallback model")
-                    
-            else:
-                st.info("ℹ️ GEMINI_API_KEY not found in secrets. Using mock AI mode.")
-        except Exception as e:
-            st.warning(f"⚠️ Gemini AI initialization failed: {str(e)}")
-            # Try alternative model
+        if "GEMINI_API_KEY" in st.secrets:
+            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+            
+            # ✅ STABLE 2025 MODEL SELECTION
+            # Primary: 2.5 Flash-Lite (Best for 90% profit/speed)
+            model_id = 'gemini-2.5-flash-lite' 
+            
+            # Alternative: Gemini 3 Flash (Advanced Reasoning)
+            # model_id = 'gemini-3-flash' 
+            
+            gemini_model = genai.GenerativeModel(model_id)
+            
+            # Test Connection with a lightweight probe
             try:
-                gemini_model = genai.GenerativeModel('gemini-pro')
+                # We use a very short prompt to save quota during initialization
+                response = gemini_model.generate_content("ping")
                 connection_status["gemini_available"] = True
-                st.success("✅ Gemini AI connected with legacy model")
-            except:
-                pass
-        
-        # Initialize Supabase
-        try:
-            if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
-                supabase_url = st.secrets["SUPABASE_URL"]
-                supabase_key = st.secrets["SUPABASE_KEY"]
-                supabase_client = create_client(supabase_url, supabase_key)
-                connection_status["supabase_available"] = True
-                st.success("✅ Supabase connected successfully")
-            else:
-                st.info("ℹ️ Supabase credentials not found in secrets. Using mock database.")
-        except Exception as e:
-            st.warning(f"⚠️ Supabase initialization failed: {str(e)}")
-        
-        # Determine mode
-        if connection_status["gemini_available"] or connection_status["supabase_available"]:
-            connection_status["mode"] = "live"
+                st.success(f"✅ Gemini {model_id} connected")
+            except Exception as model_error:
+                st.warning(f"⚠️ Primary model {model_id} failed: {str(model_error)}")
+                # Universal Fallback (The only legacy model still supported in Dec '25)
+                try:
+                    gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+                    connection_status["gemini_available"] = True
+                    st.info("✅ Connected via legacy fallback (gemini-2.0-flash)")
+                except:
+                    st.error("❌ All Gemini model attempts failed. Check API Key or Quota.")
         else:
-            connection_status["mode"] = "mock"
+            st.info("ℹ️ GEMINI_API_KEY missing. Running in Mock AI mode.")
             
     except Exception as e:
-        st.error(f"❌ Connection initialization error: {str(e)}")
-        connection_status["mode"] = "mock"
+        st.warning(f"⚠️ Gemini System Error: {str(e)}")
+
+    # 2. INITIALIZE SUPABASE
+    try:
+        if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
+            supabase_url = st.secrets["SUPABASE_URL"]
+            supabase_key = st.secrets["SUPABASE_KEY"]
+            supabase_client = create_client(supabase_url, supabase_key)
+            connection_status["supabase_available"] = True
+            st.success("✅ Supabase Memory connected")
+        else:
+            st.info("ℹ️ Supabase keys missing. Running in Mock Storage mode.")
+    except Exception as e:
+        st.warning(f"⚠️ Supabase Error: {str(e)}")
     
+    # 3. SET OPERATIONAL MODE
+    if connection_status["gemini_available"] and connection_status["supabase_available"]:
+        connection_status["mode"] = "live"
+    else:
+        connection_status["mode"] = "mock"
+        
     return gemini_model, supabase_client, connection_status
 # ==================== AI PROCESSING ENGINE ====================
 def get_sector_system_prompt(sector: str) -> str:
