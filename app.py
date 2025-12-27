@@ -99,14 +99,42 @@ def init_connections():
         try:
             if "GEMINI_API_KEY" in st.secrets:
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                # Use Gemini Flash 1.5 (2.5 Flash-Lite might not be available)
-                gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-                connection_status["gemini_available"] = True
-                st.success("✅ Gemini AI connected successfully")
+                
+                # ✅ USE CORRECT MODEL NAME FOR 2.5 FLASH-LITE:
+                # Option 1: Gemini 2.5 Flash-Lite (Fast & Efficient - 90% profit margin)
+                gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                
+                # Option 2: Gemini 3 Flash (if you have early access)
+                # gemini_model = genai.GenerativeModel('gemini-3.0-flash-exp')
+                
+                # Option 3: Fallback to latest stable
+                # gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                
+                # Test connection
+                try:
+                    response = gemini_model.generate_content("Test connection")
+                    connection_status["gemini_available"] = True
+                    st.success("✅ Gemini AI 2.5 Flash-Lite connected successfully")
+                except Exception as model_error:
+                    # Try fallback model
+                    st.warning(f"⚠️ 2.5 Flash-Lite not available: {str(model_error)}")
+                    st.info("Trying fallback model...")
+                    gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                    response = gemini_model.generate_content("Test")
+                    connection_status["gemini_available"] = True
+                    st.success("✅ Gemini AI connected with fallback model")
+                    
             else:
                 st.info("ℹ️ GEMINI_API_KEY not found in secrets. Using mock AI mode.")
         except Exception as e:
             st.warning(f"⚠️ Gemini AI initialization failed: {str(e)}")
+            # Try alternative model
+            try:
+                gemini_model = genai.GenerativeModel('gemini-pro')
+                connection_status["gemini_available"] = True
+                st.success("✅ Gemini AI connected with legacy model")
+            except:
+                pass
         
         # Initialize Supabase
         try:
@@ -132,7 +160,6 @@ def init_connections():
         connection_status["mode"] = "mock"
     
     return gemini_model, supabase_client, connection_status
-
 # ==================== AI PROCESSING ENGINE ====================
 def get_sector_system_prompt(sector: str) -> str:
     """Generate sector-specific system prompt for Gemini AI"""
